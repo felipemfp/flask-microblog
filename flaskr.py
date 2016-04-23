@@ -1,49 +1,47 @@
 # all the imports
-import sqlite3
+import os, sys
 from flask import Flask, request, session, g, redirect, url_for, abort, render_template, flash
-from contextlib import closing
+from flask_sqlalchemy import SQLAlchemy
+
+ENV = os.environ.get('ENV', default='Development')
 
 # configuration
-DATABASE = '/tmp/flaskr.db'
-DEBUG = True
-SECRET_KEY = 'development key'
-USERNAME = 'admin'
-PASSWORD = 'default'
+if ENV == 'Production':
+    DEBUG = False
+else:
+    DEBUG = True
+
+SECRET_KEY = os.environ.get('SECRET_KEY', default='development key')
+USERNAME = os.environ.get('USERNAME', default='admin')
+PASSWORD = os.environ.get('PASSWORD', default='admin')
+SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', default='sqlite:////tmp/flaskr.db')
 
 # create our little application :)
 app = Flask(__name__)
 app.config.from_object(__name__)
+db = SQLAlchemy(app)
 
+class Entry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.Text)
+    text = db.Column(db.Text)
 
-def connect_db():
-    return sqlite3.connect(app.config['DATABASE'])
+    def __init__(self, title, text):
+        self.title = title
+        self.text = text
+
+    def __repr__(self):
+        return '<Entry {}>'.format(self.title)
 
 
 def init_db():
-    with closing(connect_db()) as db:
-        with app.open_resource('schema.sql', mode='r') as f:
-            db.cursor().executescript(f.read())
-        db.commit()
-
-
-@app.before_request
-def before_request():
-    g.db = connect_db()
-
-
-@app.teardown_request
-def teardown_request(exception):
-    db = getattr(g, 'db', None)
-    if db is not None:
-        db.close()
-
+    db.create_all()
 
 # views, my lord
 
 @app.route('/')
 def show_entries():
-    cur = g.db.execute('select title, text from entries order by id desc')
-    entries = [dict(title=row[0], text=row[1]) for row in cur.fetchall()]
+    entries = Entry.query.all()
     return render_template('show_entries.html', entries=entries)
 
 
@@ -51,9 +49,9 @@ def show_entries():
 def add_entry():
     if not session.get('logged_in'):
         abort(401)
-    g.db.execute('insert into entries (title, text) values (?, ?)',
-                 [request.form['title'], request.form['text']])
-    g.db.commit()
+    newone = Entry(request.form['title'], request.form['text'])
+    db.session.add(newone)
+    db.session.commit()
     flash('New entry was successfully posted')
     return redirect(url_for('show_entries'))
 
@@ -81,4 +79,8 @@ def logout():
 
 
 if __name__ == '__main__':
-    app.run()
+    command = sys.argv[1] if len(sys.argv) > 1 else 'run'
+    if command == 'run':
+        app.run()
+    elif command == 'migrate':
+        init_db()

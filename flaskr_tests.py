@@ -7,14 +7,15 @@ import tempfile
 class FlaskrTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.db_fd, flaskr.app.config['DATABASE'] = tempfile.mkstemp()
+        self.db_fd, self.db_file = tempfile.mkstemp()
+        flaskr.app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + self.db_file
         flaskr.app.config['TESTING'] = True
         self.app = flaskr.app.test_client()
         flaskr.init_db()
 
     def tearDown(self):
         os.close(self.db_fd)
-        os.unlink(flaskr.app.config['DATABASE'])
+        os.unlink(self.db_file)
 
     def login(self, username, password):
         return self.app.post('/login', data=dict(
@@ -30,17 +31,17 @@ class FlaskrTestCase(unittest.TestCase):
         assert 'No entries here so far' in str(rv.data)
 
     def test_login_logout(self):
-        rv = self.login('admin', 'default')
+        rv = self.login('admin', 'admin')
         assert 'You were logged in' in str(rv.data)
         rv = self.logout()
         assert 'You were logged out' in str(rv.data)
-        rv = self.login('adminx', 'default')
+        rv = self.login('adminx', 'admin')
         assert 'Invalid username' in str(rv.data)
-        rv = self.login('admin', 'defaultx')
+        rv = self.login('admin', 'adminx')
         assert 'Invalid password' in str(rv.data)
 
     def test_messages(self):
-        self.login('admin', 'default')
+        self.login('admin', 'admin')
         rv = self.app.post('/add', data=dict(
             title='<Hello>',
             text='<strong>HTML</strong> allowed here'
@@ -52,4 +53,3 @@ class FlaskrTestCase(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
