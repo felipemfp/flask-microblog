@@ -1,4 +1,4 @@
-# Hi, Flask
+# Flask - Microblog
 
 :memo: A Flask app made with [tutorial](http://flask.pocoo.org/docs/0.10/tutorial/)
 
